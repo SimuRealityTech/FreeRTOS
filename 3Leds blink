@@ -1,0 +1,116 @@
+/*目的：FreeRTOSを学習する試し用コード
+ * 学習内容：
+ * １．GPIOの設定：GPIO13を出力として設定する。LEDを点滅する。
+ * 2.  GPIO13とGPIO9をそれぞれ、青いLEDと赤いLEDとつながりい、2秒周期と4秒周期で点滅する
+ * ３．FreeRTOSの思想でコードする。つまり、LedRED_Task赤いLED点滅するタスク、LedBLUE_Task青いLED点滅するタスクに別々に動作させる
+ * ４．LedRED_TaskにSuspendにする
+ */
+
+#include <stdio.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/gpio.h"
+
+/*GPIOハードを初期化するための準備*/
+#define GPIO_OUTPUT_IO_0 13   //GPIO 13をGPIO_OUTPUT_IO_0とマグロで定義する。マグロとは代替です。
+#define GPIO_OUTPUT_IO_1 9    //GPIO9は出力として追加した
+#define GPIO_OUTPUT_IO_2 12   //GPIO12出力を追加した
+#define GPIO_OUTPUT_PIN_SEL ((1ULL<<GPIO_OUTPUT_IO_0) | (1ULL<<GPIO_OUTPUT_IO_1)|(1ULL<<GPIO_OUTPUT_IO_2))  //13と9番ピンを出力する
+
+static void GPIO_LED_config(void);  //関数宣言です。この宣言をしないと、GPIO_LED_config()を認識できない。コンパイル失敗する
+static uint8_t s_ledRED_state = 0;
+static uint8_t s_ledBLUE_state = 0;
+static uint8_t s_ledGREEN_state = 0;
+static void ledRED_Task(void *);
+static void ledBLUE_Task(void *);
+static void ledGREEN_Task(void *);
+
+/*任务句柄 Task handle*/
+static TaskHandle_t LedRED_Task_Handle = NULL;       //LedRED_Task_Handle 句柄
+static TaskHandle_t LedGREEN_Task_Handle = NULL;     //LedGREEN_Task_Handle
+static TaskHandle_t LedBLUE_Task_Handle = NULL;      //LedBLUE_Task_Handle
+
+void app_main(void)
+{
+	GPIO_LED_config();   //GPIO initalize
+
+	while(1){
+	xTaskCreate(ledRED_Task, "LedRed Task",configMINIMAL_STACK_SIZE,NULL,10,&LedRED_Task_Handle);
+	vTaskDelay(200);
+	vTaskSuspend(LedRED_Task_Handle);
+	printf("Red blink\n");
+
+	xTaskCreate(ledBLUE_Task, "LedBLUE Task",configMINIMAL_STACK_SIZE,NULL,5,&LedBLUE_Task_Handle);
+    vTaskDelay(200);
+    vTaskSuspend(LedBLUE_Task_Handle);
+    printf("Blue blink\n");
+
+	xTaskCreate(ledGREEN_Task, "LedGREEN Task",configMINIMAL_STACK_SIZE,NULL,3,&LedGREEN_Task_Handle);
+    vTaskDelay(200);
+//    vTaskResume(LedRED_Task_Handle);
+//    vTaskResume(LedBLUE_Task_Handle);
+    vTaskSuspend(LedGREEN_Task_Handle);
+    printf("Green blink\n");
+	}
+}
+
+/*GPIOを初期化する
+ * ２．赤いLEDと青いLEDをそれぞれGPIO13とGPIO9で出力する、に変更した
+ */
+/*static void GPIO_LED_config (void)
+{
+	gpio_config_t io_conf = {};    //空構造体を宣言と初期化する
+	io_conf.intr_type = GPIO_INTR_DISABLE;
+	io_conf.mode = GPIO_MODE_OUTPUT;       //GPIO13は出力用
+	io_conf.pin_bit_mask =GPIO_OUTPUT_PIN_SEL;   //GPIO13をマスクした
+	io_conf.pull_down_en = 0;
+	io_conf.pull_up_en =0;
+	gpio_config(io_conf);
+}   下のもっと簡潔な表現方式を採用する。*/
+
+static void GPIO_LED_config (void)
+{
+	gpio_config_t io_conf = {    //空構造体を宣言と初期化する
+	   .intr_type = GPIO_INTR_DISABLE,
+	   .mode = GPIO_MODE_OUTPUT,       //GPIO13は出力用
+	   .pin_bit_mask =GPIO_OUTPUT_PIN_SEL,   //GPIO13をマスクした
+	   .pull_down_en = 0,
+	   .pull_up_en =0
+	};
+	gpio_config(&io_conf);
+
+	printf("gpios are initialized\n");
+}
+
+/*LedRED_Task */
+static void ledRED_Task(void * arg){
+
+    while (1) {
+        gpio_set_level(GPIO_OUTPUT_IO_0, s_ledRED_state);
+        vTaskDelay(100);
+        s_ledRED_state = ! s_ledRED_state;
+        printf("Red led is running\n");
+    }
+}
+
+/*LedBLUE_Task*/
+static void ledBLUE_Task(void * arg){
+
+    while (1) {
+        gpio_set_level(GPIO_OUTPUT_IO_1, s_ledBLUE_state);
+        vTaskDelay(100);
+        s_ledBLUE_state = ! s_ledBLUE_state;
+        printf("Blue led is running\n");
+    }
+}
+
+/*LedGREEN_Task*/
+static void ledGREEN_Task(void * arg){
+
+    while (1) {
+        gpio_set_level(GPIO_OUTPUT_IO_2, s_ledGREEN_state);
+        vTaskDelay(100);
+        s_ledGREEN_state = ! s_ledGREEN_state;
+        printf("Green led is running\n");
+    }
+}
